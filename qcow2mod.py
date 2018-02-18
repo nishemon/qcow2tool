@@ -1,8 +1,8 @@
 import io
 from ctypes import *
 from qcow2struct import *
+from qcow2 import *
 from zlib import decompress
-
 
 def load_table(fileobj, table_offset, size, entryType):
     if table_offset:
@@ -26,8 +26,7 @@ class BackingFileFormatName(object):
 
 
 def load_feature_name_table(fileobj, size):
-    entries = load_table(fileobj, 0, size, FeatureNameTableEntry)
-    return entries
+    return load_table(fileobj, 0, size, FeatureNameTableEntry)
 
 
 def load_bitmaps_extension(fileobj, size):
@@ -54,7 +53,6 @@ def load_extensions(fileobj):
         ext = HeaderExtensionHeader()
         fileobj.readinto(ext)
         off = fileobj.tell()
-        print ("ext: 0x%x" % ext.magic)
         if ext.magic == 0:
             break
         for etype in extension_define:
@@ -73,28 +71,21 @@ class Cluster(object):
         self.all_zero = all_zero
 
 
-class Qcow2File(io.BufferedIOBase):
-    def __init__(self, filename, backing=True):
-        super(Qcow2File, self).__init__()
-        fileobj = open(filename, 'rb')
-        header = Header()
-        fileobj.readinto(header)
-        if header.magic != 'QFI\xfb':
-            raise IOError('Not QCOW2 format')
-        if header.version == 2:
-            header.incompatible_features = 0
-            header.compatible_features = 0
-            header.refcount_order = 4
-            header.header_length = 72
-        elif header.version != 3:
-            raise IOError('Unsupported version %d' % header.version)
-        print(fileobj.tell())
-        self.header = header
-        self.fileobj = fileobj
+class Qcow2Modifier(object):
+    def __init__(self, base_qcow2):
+        """
+        :param Qcow2File base_qcow2:
+        """
+        self.base = base_qcow2
+        self.out_of_order = False
+
+    def write(self, filename):
+        fileobj = open(filename, 'wb')
+        header = Header.from_buffer_copy(self.base.get_header())
+        header.version = 3
+        fileobj.write(header)
+        write_extensions(fileobj, self.base.extensions)
         self.extensions = load_extensions(fileobj)
-        self.backingFile = None
-        self.backingFile = self.get_backing_file()
-        # TODO: backing is not bound in qcow2 format
         self.backing = Qcow2File(self.backingFile) if backing and self.backingFile else None
         cluster_size = 1 << header.cluster_bits
         self.refcounts = load_table(fileobj, header.refcount_table_offset,
@@ -104,14 +95,11 @@ class Qcow2File(io.BufferedIOBase):
         self.cache_last_l2_block_offset = -1
         self.cache_last_l2_block = None
 
-    def get_image_size(self):
-        return self.header.size
+    def append_compressed_cluster(self, offset, bytes):
+        pass
 
-    def get_cluster_size(self):
-        return 1 << self.header.cluster_bits
-
-    def get_refcount_size(self):
-        return 1 << (1 << self.header.refcount_order)
+    def append_raw_cluster_by_copy(self, offset):
+        pass
 
     def read_refcount_block(self, offset):
         count_in_block = 1 << (self.header.cluster_bits - (self.header.refcount_order - 3))

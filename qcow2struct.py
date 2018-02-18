@@ -3,6 +3,7 @@ from ctypes import *
 
 
 class Header(BigEndianStructure):
+    """from qcow2.h: QcowHeader"""
     _fields_ = [
         ("magic", c_char * 4),
         ("version", c_uint32),
@@ -20,43 +21,54 @@ class Header(BigEndianStructure):
         # v3
         ("incompatible_features", c_uint64),
         ("compatible_features", c_uint64),
+        ("autoclear_feature", c_uint64),
         ("refcount_order", c_uint32),
         ("header_length", c_uint32),
     ]
 
 
-class HeaderExtensionHeader(BigEndianStructure):
+class SnapshotHeader(BigEndianStructure):
+    """from qcow2.h: QcowSnapshotHeader"""
     _fields_ = [
-        ("type", c_uint32),
-        ("size", c_uint32),
+        ("l1_table_offset", c_uint64),
+        ("l1_size", c_uint32),
+        ("id_str_size", c_uint16),
+        ("name_size", c_uint16),
+        ("date_sec", c_uint32),
+        ("date_nsec", c_uint32),
+        ("vm_clock_nsec", c_uint64),
+        ("vm_state_size", c_uint32),
+        ("extra_data_size", c_uint32),
     ]
 
 
-class BackingFileFormatName():
-    def __init__(self, fileobj, size):
-        self.name = fileobj.read(size)
+class SnapshotExtraData(BigEndianStructure):
+    """from qcow2.h: QcowSnapshotExtraData"""
+    _fields_ = [
+        ("vm_state_size_large", c_uint64),
+        ("disk_size", c_uint64),
+    ]
+
+
+class HeaderExtensionHeader(BigEndianStructure):
+    """from qcow2.h: Qcow2UnknownHeaderExtension"""
+    _fields_ = [
+        ("magic", c_uint32),
+        ("len", c_uint32),
+    ]
 
 
 class FeatureNameTableEntry(BigEndianStructure):
+    """from qcow2.h: Qcow2Feature"""
     _fields_ = [
         ("type", c_uint8),
-        ("bit_number", c_uint8),
+        ("bit", c_uint8),
         ("name", c_char * 46),
     ]
 
 
-class FeatureNameTable():
-    def __init__(self, fileobj, size):
-        entries = []
-        while 0 < size:
-            entry = FeatureNameTableEntry()
-            fileobj.readinto(entry)
-            entries.append(entry)
-            size -= 48
-        self.entries = entries
-
-
 class BitmapsExtension(BigEndianStructure):
+    """from qcow2.h: Qcow2BitmapHeaderExt"""
     _fields_ = [
         ("nb_bitmaps", c_uint32),
         ("reserved", c_uint32),
@@ -64,33 +76,31 @@ class BitmapsExtension(BigEndianStructure):
         ("bitmap_directory_offset", c_uint64),
     ]
 
-    def __init__(self, fileobj, size):
-        if size != 24:
-            raise IOError, 'Unsupported Bitmaps'
-        fileobj.readinto(self)
 
-
-class FullDiskEncryptionHeaderPointer():
-    extensions=[
-        (0xE2792ACA, BackingFileFormatName),
-        (0x6803f857, FeatureNameTable),
-        (0x23852875, BitmapsExtension),
-        (0x0537be77, FullDiskEncryptionHeaderPointer)
+class FullDiskEncryptionHeaderPointer(BigEndianStructure):
+    """from qcow2.h: Qcow2CryptoHeaderExtension"""
+    _fields_ = [
+        ("offset", c_uint64),
+        ("length", c_uint64),
     ]
 
 
 class RefcountTableEntry(BigEndianStructure):
-    pass
+    _fields_ = [
+        ("offset", c_uint64),
+    ]
+
 
 class L1TableEntry(BigEndianStructure):
     _fields_ = [
-        ("reserved1", c_uint64, 9),
-        ("offset", c_uint64, 47),
-        ("reserved2", c_uint64, 7),
         ("normal", c_uint64, 1),
+        ("reserved", c_uint64, 7),
+        ("offset", c_uint64, 56),
     ]
 
-    # revese?
+
+
+# reverse?
 class L2TableEntry(BigEndianStructure):
     _fields_ = [
         ("normal", c_uint64, 1),
