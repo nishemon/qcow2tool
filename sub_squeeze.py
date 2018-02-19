@@ -21,14 +21,14 @@ def check_cluster_size(qf):
     if zero:
 
 
-def squeeze(conf, args):
+def squeeze(args):
     pass
 
 
 def setup_subcmd(subparsers):
     squeeze_parser = subparsers.add_parser('squeeze', help='squeeze qcow2 image')
-    squeeze_parser.add_argument('src', type=argparse.FileType('r'), nargs=1)
-    squeeze_parser.add_argument('dest', type=argparse.FileType('w'), nargs=1)
+    squeeze_parser.add_argument('src', type=argparse.FileType('rb'))
+    squeeze_parser.add_argument('dest', type=argparse.FileType('wb'))
     squeeze_parser.add_argument('-z', '--zopfli', help='compress with zopfli')
     squeeze_parser.add_argument('-u', '--unordered', help='unordered')
     squeeze_parser.add_argument('-r', '--ratio', nargs=1, type=float, help='switch raito for performance(0.9)')

@@ -1,39 +1,60 @@
 import argparse
 import hashlib
+import qcow2
+import sys
 
 hasher_base = None
 
 
-def hash_cluster(algo, image):
+def hash_cluster(content):
     global hasher_base
     hasher = hasher_base.copy()
-    hasher.update()
+    hasher.update(content)
     return hasher.digest()
 
 
-def hash_zero(algo, size):
+def hash_zero(size):
     global hasher_base
     hasher = hasher_base.copy()
     hasher.update(bytearray(size))
     return hasher.digest()
 
 
-def xor(a, b):
-    return map(lambda x, y: x ^ y, a, b)
+def xor(list_value, str_value):
+    return map(lambda x, y: (x ^ ord(y)), list_value, str_value)
 
 
-def chash(conf, args):
+def chash(args):
     global hasher_base
+    hasher_base = hashlib.new(args.algo)
     zero_cluster = 0
-    hasher_base = conf.algo
-    calc = hash_cluster()
-    if zero_cluster & 1:
-        calc = xor(calc, hash_zero())
+    clsize = 0
+    with qcow2.Qcow2File(args.src, True) as qf:
+        offset = 0
+        calc = None
+        while offset < qf.get_image_size():
+            clusters = qf.read_l2_block(offset, True)
+            if clusters:
+                for cl in clusters:
+                    if cl.all_zero or cl.offset == 0:
+                        zero_cluster += 1
+                    else:
+                        content = qf.read_from_cluster(cl)
+                        h = hash_cluster(content)
+                        calc = xor(calc, h) if calc else [ord(x) for x in h]
+            offset += qf.get_cluster_size() * qf.get_l2_count_in_block()
+            sys.stdout.write("0x%x / 0x%x\r" % (offset, qf.get_image_size()))
+            sys.stdout.flush()
+        if zero_cluster & 1:
+            h = hash_zero(qf.get_cluster_size())
+            calc = xor(calc, h) if calc else [ord(x) for x in h]
+        clsize = qf.get_cluster_size()
+    print("%s %s (cluster size:%d)" % (''.join(['%02x' % x for x in calc]), args.src.name, clsize))
 
 
 def setup_subcmd(subparsers):
     chash_parser = subparsers.add_parser('chash', help='calc cluster hash')
-    chash_parser.add_argument('src', type=argparse.FileType('r'), nargs=1)
+    chash_parser.add_argument('src', type=argparse.FileType('rb'))
     chash_parser.add_argument('-b', '--back', nargs=1, help='consider hash as backing file')
-    chash_parser.add_argument('-a', '--algo', nargs=1, choices=['md5', 'sha1'])
+    chash_parser.add_argument('-a', '--algo', nargs=1, choices=['md5', 'sha1'], default='md5')
     chash_parser.set_defaults(handler=chash)

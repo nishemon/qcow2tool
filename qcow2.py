@@ -54,7 +54,6 @@ def load_extensions(fileobj):
         ext = HeaderExtensionHeader()
         fileobj.readinto(ext)
         off = fileobj.tell()
-        print ("ext: 0x%x" % ext.magic)
         if ext.magic == 0:
             break
         for etype in extension_define:
@@ -74,9 +73,9 @@ class Cluster(object):
 
 
 class Qcow2File(io.BufferedIOBase):
-    def __init__(self, filename, backing=True):
+    def __init__(self, filename_or_obj, backing=True):
         super(Qcow2File, self).__init__()
-        fileobj = open(filename, 'rb')
+        fileobj = open(filename_or_obj, 'rb') if isinstance(filename_or_obj, str) else filename_or_obj
         header = Header()
         fileobj.readinto(header)
         if header.magic != 'QFI\xfb':
@@ -88,7 +87,6 @@ class Qcow2File(io.BufferedIOBase):
             header.header_length = 72
         elif header.version != 3:
             raise IOError('Unsupported version %d' % header.version)
-        print(fileobj.tell())
         self.header = header
         self.fileobj = fileobj
         self.extensions = load_extensions(fileobj)
@@ -177,9 +175,10 @@ class Qcow2File(io.BufferedIOBase):
             return Cluster(0, self.get_cluster_size(), all_zero=True)
         return entries[(offset >> self.header.cluster_bits) % len(entries)]
 
-    def read_from_cluster(self, offset, cluster=None):
+    def read_from_cluster(self, offset_or_cluster):
+        cluster = offset_or_cluster if isinstance(offset_or_cluster, Cluster) else None
         if not cluster:
-            cluster = self.read_l2(offset)
+            cluster = self.read_l2(offset_or_cluster)
         self.fileobj.seek(cluster.offset)
         read = self.fileobj.read(cluster.size)
         if cluster.compress:
@@ -196,7 +195,8 @@ class Qcow2File(io.BufferedIOBase):
         return self.fileobj.read(self.header.backing_file_size)
 
     def close(self):
-        self.backing.close()
+        if self.backing:
+            self.backing.close()
         self.fileobj.close()
 
     def read(self, size=-1):
