@@ -60,6 +60,7 @@ class _PendingCluster(object):
 
 def reserve(fileobj, size):
     fileobj.seek(size, os.SEEK_CUR)
+    fileobj.truncate()
 
 
 def realign(fileobj, cluster_size):
@@ -114,6 +115,8 @@ class Qcow2ClusterAppender(object):
         self.refs = []
         self.close_redirect = lambda: parent.finish_clusters(self.l1_entries, self.refs)
         self.unmap = unmap
+        self.refcounts_last_fileoffset = 0
+        self.refcounts_order = parent.header.refcount_order
 
     def append_compressed_cluster(self, compressing_bytes=None):
         if not compressing_bytes:
@@ -164,9 +167,28 @@ class Qcow2ClusterAppender(object):
             raise IOError('cannot decrease offset 0x%x < 0x%x' % (offset, self.offset))
         self.offset = offset
 
+    def _copy_refcounts(self, image_offset, file_offset):
+        count = self.cluster_size * 8 >> self.refcounts_order
+        begin = image_offset & (self.cluster_size * count - 1)
+        values = [RefCountEntries[self.refcounts_order]() for _ in range(count)]
+        index = 0
+        while index < len(values):
+            block = self.original.read_refcount_block(begin)
+            for b in block:
+                values[index].set(b.get())
+                index += 1
+                if len(values) <= index:
+                    break
+            begin += self.cluster_size * 8 * len(block)
+        self.fileobj.seek(file_offset)
+        for v in values:
+            self.fileobj.write(v)
+        self.refcounts_last_fileoffset = file_offset
+
     def _alloc_cluster_entry(self, offset):
         off_index = self.current_refcounts.map(self.fileobj, offset)
-        # TODO update refcounts
+        if self.refcounts_last_fileoffset != off_index[0]:
+            self._copy_refcounts(offset, off_index[0])
         off_index = self.current_l2.map(self.fileobj, offset)
         return off_index[0] + sizeof(L2TableEntry) * off_index[1]
 
@@ -178,11 +200,14 @@ class Qcow2ClusterAppender(object):
         return l2_offset
 
     def new_l2_entry(self, image_offset, file_offset, compressed=False, size=0):
-        ref = self.original.read_refcount(image_offset)
+        ref = self.original.get_refcount(image_offset)
         if compressed:
-            desc = ((file_offset >> 9) - ((file_offset + size) >> 9)) << self.x | file_offset
+            desc = (((file_offset + size - 1) >> 9) - (file_offset >> 9)) << self.x | file_offset
             return L2TableEntry(1 if ref == 1 else 0, 1, desc)
         else:
+            if file_offset % self.cluster_size:
+                print("misalign 0x%x" % file_offset)
+                raise IOError
             return L2TableEntry(1 if ref == 1 else 0, 0, file_offset)
 
     def _map_cluster(self, image_offset, file_offset=-1, compressed=False, size=0):
@@ -266,11 +291,13 @@ class Qcow2Modifier(object):
         :param Qcow2File base_qcow2:
         """
         self.original = base_qcow2
-        self.header = base_qcow2.header
+        self.header = Header.from_buffer_copy(base_qcow2.header)
         # TODO: rename at last
         self.fileobj = open(output, 'wb') if isinstance(output, str) else output
         reserve(self.fileobj, sizeof(Header))
-
+        self.header.backing_file_offset = self.fileobj.tell()
+        self.header.backing_file_size = len(self.original.backingFile)
+        self.fileobj.write(self.original.backingFile)
 
     def begin_append_clusters(self, last_cluster_offset=0, refcount_order=0, cluster_bits=0):
         if refcount_order:
@@ -283,6 +310,8 @@ class Qcow2Modifier(object):
             last_cluster_no = self.original.get_last_cluster_number()
 
         cluster_size = 1 << self.header.cluster_bits
+        realign(self.fileobj, cluster_size)
+
         per_cluster = calc_refcounts_per_cluster(self.header.cluster_bits, self.header.refcount_order)
         rc_cluster_count = (last_cluster_no + per_cluster - 1) / per_cluster
         table_size = (rc_cluster_count * sizeof(RefcountTableEntry) + cluster_size - 1) >> self.header.cluster_bits
@@ -295,6 +324,7 @@ class Qcow2Modifier(object):
         self.header.l1_size = l1_count
         self.header.l1_table_offset = self.fileobj.tell()
         reserve(self.fileobj, l1_count * sizeof(L1TableEntry))
+
         realign(self.fileobj, cluster_size)
         unmap = not self.header.backing_file_offset
         return Qcow2ClusterAppender(self, unmap, 0)
@@ -305,6 +335,11 @@ class Qcow2Modifier(object):
             index = image_offset / l2_clusters_size
             self.fileobj.seek(self.header.l1_table_offset + index * sizeof(L1TableEntry))
             self.fileobj.write(L1TableEntry(1, 0, file_offset))
+        refs_clusters_size = 1 << (self.header.cluster_bits * 2 - self.header.refcount_order - 3)
+        for image_offset, file_offset in refs:
+            index = image_offset / refs_clusters_size
+            self.fileobj.seek(self.header.refcount_table_offset + index * sizeof(RefcountTableEntry))
+            self.fileobj.write(RefcountTableEntry(file_offset))
 
     def close(self):
         self.fileobj.seek(0)

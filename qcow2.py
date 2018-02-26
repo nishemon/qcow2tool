@@ -4,6 +4,7 @@ from qcow2struct import *
 import zlib
 from cStringIO import StringIO
 
+
 def calc_refcounts_per_cluster(cluster_bits, order):
     return 1 << (cluster_bits + 3 - order)
 
@@ -101,7 +102,7 @@ class Qcow2File(io.BufferedIOBase):
         self.extensions = load_extensions(fileobj)
         self.backingFile = None
         self.backingFile = self.get_backing_file()
-        # TODO: backing is not bound in qcow2 format
+        # TODO: backing is not only qcow2 format
         self.backing = Qcow2File(self.backingFile) if backing and self.backingFile else None
         cluster_size = 1 << header.cluster_bits
         self.refcounts = load_table(fileobj, header.refcount_table_offset,
@@ -112,6 +113,9 @@ class Qcow2File(io.BufferedIOBase):
         self.cache_last_l2_block = None
         # for Image Read
         self.image_pointer = 0
+
+    def has_backing_file(self):
+        return bool(self.backingFile)
 
     def get_image_size(self):
         return self.header.size
@@ -126,12 +130,8 @@ class Qcow2File(io.BufferedIOBase):
         count_in_block = 1 << (self.header.cluster_bits - (self.header.refcount_order - 3))
         cluster = offset >> self.header.cluster_bits
         t = self.refcounts[cluster / count_in_block]
-        if t.reserved != 0:
-            raise IOError('Unsupported Refcount table entry')
-        if t.block_offset == 0:
-            return [0] * count_in_block
-        self.fileobj.seek(t.block_offset)
-        block = self.fileobj.read(self.get_cluster_size())
+        entry_class = RefCountEntries[self.header.refcount_order]
+        return load_table(self.fileobj, t.offset, self.get_cluster_size(), entry_class)
 
     def get_l2_count_in_block(self):
         return 1 << (self.header.cluster_bits - 3)
@@ -196,9 +196,10 @@ class Qcow2File(io.BufferedIOBase):
             return Cluster(cluster_id, 0, self.get_cluster_size(), all_zero=True)
         return entries[cluster_id % len(entries)]
 
-    def read_refcount(self, offset):
-        # TODO
-        return 1
+    def get_refcount(self, offset):
+        entries = self.read_refcount_block(offset)
+        index = offset % (len(entries) * 8)
+        return entries[index / 8].get()[offset & 7]
 
     def read_from_cluster(self, offset_or_cluster, extract=True):
         cluster = offset_or_cluster if isinstance(offset_or_cluster, Cluster) else None

@@ -38,11 +38,11 @@ def compress(qf, qm, ratio):
     :param qcow2mod.Qcow2Modifier qm:
     :return:
     """
-    print(ratio)
-    force_compression = True
+    # TODO base file but no compression
+    always_compression = qf.has_backing_file()
     offset = 0
     resize = 0
-    appender = qm.begin_append_clusters(refcount_order=8)
+    appender = qm.begin_append_clusters(refcount_order=2)
     last = qf.get_last_cluster_number() * qf.get_cluster_size()
     waste = 0
     while offset < qf.get_image_size():
@@ -57,7 +57,7 @@ def compress(qf, qm, ratio):
                     continue
                 blank = appender.get_blank_size()
                 threshold = int((blank + qf.get_cluster_size()) * ratio)
-                if cl.compress or (force_compression and not cl.all_zero):
+                if cl.compress or (always_compression and not cl.all_zero):
                     read = qf.read_from_cluster(cl)
                     cobj = zlib.compressobj(6, zlib.DEFLATED, -12, 9, zlib.Z_DEFAULT_STRATEGY)
                     buff = cobj.compress(read) + cobj.flush()
@@ -80,11 +80,10 @@ def compress(qf, qm, ratio):
 
         offset += qf.get_cluster_size() * qf.get_l2_count_in_block()
     appender.close()
-    print("wasted %d " % waste)
 
 
 def squeeze(args):
-    with qcow2.Qcow2File(args.src, False) as qf:
+    with qcow2.Qcow2File(args.src, args.deep) as qf:
         qm = qcow2mod.Qcow2Modifier(qf, args.dst)
         compress(qf, qm, args.ratio)
         qm.close()
@@ -95,11 +94,11 @@ def setup_subcmd(subparsers):
     squeeze_parser = subparsers.add_parser('squeeze', help='squeeze qcow2 image')
     squeeze_parser.add_argument('src', type=argparse.FileType('rb'))
     squeeze_parser.add_argument('dst', type=argparse.FileType('wb'))
-    squeeze_parser.add_argument('-z', '--zopfli', help='compress with zopfli')
-    squeeze_parser.add_argument('-u', '--unordered', help='unordered')
-    squeeze_parser.add_argument('-r', '--ratio', type=float, help='switch raito for performance(0.9)', default=0.9)
-    squeeze_parser.add_argument('-d', '--deep', help='use backing files')
-    squeeze_parser.add_argument('-x', '--exclude', nargs='+', type=argparse.FileType('r'),
-                               help='erase unreference areas')
-    squeeze_parser.add_argument('-c', '--common', nargs='+', type=argparse.FileType('r'), help='collect common areas')
+#    squeeze_parser.add_argument('-z', '--zopfli', help='compress with zopfli')
+#    squeeze_parser.add_argument('-u', '--unordered', help='unordered')
+    squeeze_parser.add_argument('-r', '--ratio', type=float, help='change ratio for performance(0.95)', default=0.95)
+    squeeze_parser.add_argument('-d', '--deep', help='use backing files', action='store_true')
+#    squeeze_parser.add_argument('-x', '--exclude', nargs='+', type=argparse.FileType('r'),
+#                               help='erase unreference areas')
+#    squeeze_parser.add_argument('-c', '--common', nargs='+', type=argparse.FileType('r'), help='collect common areas')
     squeeze_parser.set_defaults(handler=squeeze)
