@@ -10,9 +10,9 @@ import sub_chash
 
 sub_chash.setup_subcmd(subparsers)
 
-#import sub_squeeze
-#
-#sub_squeeze.setup_subcmd(subparsers)
+import sub_squeeze
+
+sub_squeeze.setup_subcmd(subparsers)
 
 import sub_analyze
 sub_analyze.setup_subcmd(subparsers)
