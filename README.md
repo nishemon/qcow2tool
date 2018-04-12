@@ -6,13 +6,14 @@ compress qcow2 file
 - You can compress a snapshot file without the backing file. 
 
 ```
-python qcow2tool.py squeeze (src) (dest)
+> python qcow2tool.py squeeze (src) (dest)
 ```
 
-## warining
+## status
+### warning
 This is a toy tool. I have not done enough testing.
 So, you shuld check output files with "qemu-img compare".
 
-## status
+### not
 - not support to internal snapshot, bitmaps and header extensions
 

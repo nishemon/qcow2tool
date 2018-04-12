@@ -1,11 +1,8 @@
 import argparse
-import struct
-import ctypes
 import zlib
 import qcow2
-import qcow2mod
+from qcow2 import qcow2mod
 import sys
-import subprocess
 
 """
 class Bitmap(ctypes.Structure):
@@ -91,7 +88,11 @@ def squeeze(args):
 
 
 def setup_subcmd(subparsers):
-    squeeze_parser = subparsers.add_parser('squeeze', help='squeeze qcow2 image')
+    squeeze_parser = subparsers.add_parser('squeeze', formatter_class=argparse.RawDescriptionHelpFormatter,
+                                         description='''\
+ More compress image files for archive.
+ High compression for transfer or backup
+''', help='squeeze qcow2 image')
     squeeze_parser.add_argument('src', type=argparse.FileType('rb'))
     squeeze_parser.add_argument('dst', type=argparse.FileType('wb'))
 #    squeeze_parser.add_argument('-z', '--zopfli', help='compress with zopfli')

@@ -53,8 +53,13 @@ def chash(args):
 
 
 def setup_subcmd(subparsers):
-    chash_parser = subparsers.add_parser('chash', help='calc cluster hash')
+    chash_parser = subparsers.add_parser('chash', formatter_class=argparse.RawDescriptionHelpFormatter,
+                                         description='''\
+ Calculate a value like hash for snapshot images.
+ chash method is:
+   value = clusters.map(md5).reduce(xor)
+''', help='sum of all cluster hashes')
     chash_parser.add_argument('src', type=argparse.FileType('rb'))
-    chash_parser.add_argument('-b', '--back', nargs=1, help='consider hash as backing file')
-    chash_parser.add_argument('-a', '--algo', nargs=1, choices=['md5', 'sha1'], default='md5')
+    chash_parser.add_argument('-b', '--backing', metavar='CHASH', help='give chash of backing file')
+    chash_parser.add_argument('-a', '--algo', choices=['md5', 'sha1'], default='md5', help='set base hash')
     chash_parser.set_defaults(handler=chash)

@@ -1,8 +1,4 @@
-import io
-from ctypes import *
-from qcow2struct import *
-from qcow2 import *
-from zlib import decompress
+from qcow2tool.qcow2.qcow2struct import *
 import os
 
 
@@ -94,6 +90,7 @@ class _MapperCursor(object):
             reserve(fileobj, self.cluster_size)
         index = gap / self.cluster_size
         return self.file_offset, index
+
 
 class Qcow2ClusterAppender(object):
     def __init__(self, parent, unmap=False, available_gap=0):
