@@ -27,7 +27,6 @@ def check_cluster_size(qf):
 """
 
 
-
 def compress(qf, qm, ratio):
     """
 
@@ -88,8 +87,7 @@ def squeeze(args):
 
 
 def setup_subcmd(subparsers):
-    squeeze_parser = subparsers.add_parser('squeeze', formatter_class=argparse.RawDescriptionHelpFormatter,
-                                         description='''\
+    squeeze_parser = subparsers.add_parser('squeeze', formatter_class=argparse.RawDescriptionHelpFormatter, description='''\
  More compress image files for archive.
  High compression for transfer or backup
 ''', help='squeeze qcow2 image')
