@@ -1,4 +1,5 @@
-from qcow2tool.qcow2.qcow2struct import *
+from qcow2reader import *
+from qcow2struct import *
 import os
 
 

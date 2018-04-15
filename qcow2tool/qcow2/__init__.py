@@ -1,1 +1,1 @@
-from qcow2 import Qcow2File
+from qcow2reader import Qcow2File
