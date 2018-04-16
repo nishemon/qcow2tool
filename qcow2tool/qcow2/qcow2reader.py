@@ -169,7 +169,7 @@ class Qcow2File(io.BufferedIOBase):
                 cl = Cluster(cluster_id, off, (sectors << 9) - (off & 511), True)
             else:
                 off = c.descriptor & (((1 << 47) - 1) << 9)
-                if 1 < (c.descriptor ^ off) or c.descriptor % self.get_cluster_size():
+                if 1 < (c.descriptor ^ off) or off % self.get_cluster_size():
                     raise IOError('Unknown L2 entry format 0x%x' % c.descriptor)
                 if c.descriptor & 1:
                     cl = Cluster(cluster_id, off, self.get_cluster_size() if off else 0, all_zero=True)
