@@ -276,7 +276,7 @@ class Qcow2ClusterAppender(object):
         if self.compressed_clusters:
             self.commit_compressed_clusters(True)
         for offset in self.zero_clusters[:-1]:
-            ref = self.original.read_refcount(offset)
+            ref = self.original.get_refcount(offset)
             entry = L2TableEntry(1 if ref == 1 else 0, 0, 1)
             self._write_cluster_entry(offset, entry)
 
