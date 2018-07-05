@@ -55,7 +55,7 @@ def compress(qf, qm, ratio):
                 threshold = int((blank + qf.get_cluster_size()) * ratio)
                 if cl.compress or (always_compression and not cl.all_zero):
                     read = qf.read_from_cluster(cl)
-                    cobj = zlib.compressobj(6, zlib.DEFLATED, -12, 9, zlib.Z_DEFAULT_STRATEGY)
+                    cobj = zlib.compressobj(9, zlib.DEFLATED, -12, 9, zlib.Z_DEFAULT_STRATEGY)
                     buff = cobj.compress(read) + cobj.flush()
                     clen = len(buff)
                     if cl.size < clen and cl.size < threshold:
@@ -67,7 +67,7 @@ def compress(qf, qm, ratio):
                     elif clen < threshold:
                         appender.append_compressed_cluster(buff)
                         continue
-                # TODO detect all zero if decrease cluster-size
+                # TODO check all zero cluster if decrease cluster-size
                 if cl.all_zero:
                     appender.append_zero_cluster()
                 else:

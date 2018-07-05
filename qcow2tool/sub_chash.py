@@ -2,7 +2,7 @@ import argparse
 import hashlib
 import qcow2
 import sys
-
+import sets
 hasher_base = None
 
 

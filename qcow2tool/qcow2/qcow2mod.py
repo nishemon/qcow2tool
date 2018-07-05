@@ -66,6 +66,7 @@ def realign(fileobj, cluster_size):
     reserve(fileobj, skip)
     return cur + skip
 
+
 _IGNORABLE_BLANK = 0
 _MEM_LIMIT = 32*1024*1024
 
@@ -293,9 +294,13 @@ class Qcow2Modifier(object):
         # TODO: rename at last
         self.fileobj = open(output, 'wb') if isinstance(output, str) else output
         reserve(self.fileobj, sizeof(Header))
-        self.header.backing_file_offset = self.fileobj.tell()
-        self.header.backing_file_size = len(self.original.backingFile)
-        self.fileobj.write(self.original.backingFile)
+        if self.original.backingFile:
+            self.header.backing_file_offset = self.fileobj.tell()
+            self.header.backing_file_size = len(self.original.backingFile)
+            self.fileobj.write(self.original.backingFile)
+        else:
+            self.header.backing_file_offset = 0
+            self.header.backing_file_size = 0
 
     def begin_append_clusters(self, last_cluster_offset=0, refcount_order=0, cluster_bits=0):
         if refcount_order:
